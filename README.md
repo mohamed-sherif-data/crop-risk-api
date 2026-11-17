@@ -1,6 +1,6 @@
 # Egypt Crop Risk — API + interface
 
-**Live:** <https://mohamed-sherif-data--crop-api.modal.run> · **Docs:** [`/docs`](https://mohamed-sherif-data--crop-api.modal.run/docs)
+**Live:** <https://mohamed-sherif-data--crop-api.modal.run> · **Docs:** [`/docs`](https://mohamed-sherif-data--crop-api.modal.run/docs) · **Source:** <https://github.com/mohamed-sherif-data/crop-risk-api>
 
 The crop-risk notebook (`crop_project_short.ipynb`) and its Streamlit app, rebuilt as
 one FastAPI service with two faces:
