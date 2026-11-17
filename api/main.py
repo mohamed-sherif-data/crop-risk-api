@@ -10,10 +10,11 @@ report is now a JSON document any client can call.
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request
-from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
 
 from api import schemas
 from engine import (
@@ -29,6 +30,7 @@ from engine import (
 )
 
 API_VERSION = "1.0.0"
+WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
 
 @asynccontextmanager
@@ -69,11 +71,16 @@ app = FastAPI(
 
 
 @app.middleware("http")
-async def no_store(request: Request, call_next):
-    """Numbers change when the data or a model changes; never cache a response."""
+async def cache_policy(request: Request, call_next):
+    """Never let a stale page or a stale number survive a redeploy."""
     response = await call_next(request)
-    if request.url.path.startswith("/v1/"):
+    path = request.url.path
+    if path == "/" or path.endswith(".html"):
+        response.headers["Cache-Control"] = "no-store, must-revalidate"
+    elif path.startswith("/v1/"):
         response.headers["Cache-Control"] = "no-store"
+    else:
+        response.headers["Cache-Control"] = "no-cache"
     return response
 
 
@@ -198,11 +205,6 @@ for router in (meta_router, crops_router, risk_router, models_router):
     app.include_router(router)
 
 
-@app.get("/", include_in_schema=False)
-def root() -> RedirectResponse:
-    return RedirectResponse("/docs")
-
-
 @app.get("/v1", tags=["meta"], summary="Service index")
 def index() -> dict:
     return {
@@ -223,6 +225,11 @@ def index() -> dict:
         "risk_bands": {"low": "0-15", "medium": "15-35", "high": "35-100"},
         "note": "The report's rule-based part (soil points, Ky for non-wheat crops) is assumption-based; see /v1/meta.",
     }
+
+
+# Mounted last so every explicit route above keeps winning; "/" serves web/index.html.
+if WEB_DIR.is_dir():
+    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
 
 
 __all__ = ["app", "risk_band"]

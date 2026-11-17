@@ -33,10 +33,18 @@ def test_meta_publishes_the_rules(client):
     assert any("assumption" in line.lower() for line in body["assumptions"])
 
 
-def test_root_points_at_the_docs(client):
-    response = client.get("/", follow_redirects=False)
-    assert response.status_code in (302, 307)
-    assert response.headers["location"] == "/docs"
+def test_root_serves_the_interface(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert "How risky is this season" in response.text
+    assert response.headers["cache-control"].startswith("no-store")
+
+
+def test_interface_assets_are_served(client):
+    assert client.get("/app.js").status_code == 200
+    assert client.get("/styles.css").status_code == 200
+    assert client.get("/assets/field.webp").status_code == 200
 
 
 # --------------------------------------------------------------------- crops

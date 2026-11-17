@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Crop Risk · مخاطر المحاصيل</title>
+<meta name="description" content="Estimate an Egyptian crop's next-season risk from its own yield history, your water supply, soil and growth stage." />
+<meta name="color-scheme" content="dark" />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500&family=IBM+Plex+Sans+Arabic:wght@300;400;500&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="./styles.css?v=1" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>" />
+</head>
+<body>
+
+<div id="status" class="status" role="status" aria-live="polite">
+  <span class="status__dot"></span>
+  <span id="status-text">Connecting…</span>
+</div>
+
+<header class="topbar">
+  <a class="brand" href="/">Crop Risk <em>· مخاطر المحاصيل</em></a>
+  <a class="topbar__link" href="/docs">API docs</a>
+</header>
+
+<main>
+  <!-- ------------------------------------------------------------- hero -->
+  <section class="hero">
+    <div class="hero__media" aria-hidden="true"></div>
+    <div class="hero__inner">
+      <p class="eyebrow">FAOSTAT · Egypt · 1990–2024</p>
+      <h1>How risky is this season<br />for your crop?</h1>
+      <p class="lede">
+        Four inputs — crop, soil, water and growth stage. The model reads the
+        crop's own history, then adds the water you can actually supply.
+      </p>
+      <p class="lede-ar" lang="ar" dir="rtl">
+        أربع مدخلات فقط: المحصول، التربة، المياه المتاحة، ومرحلة النمو — والنتيجة
+        توضّح الخطر وتشرح مصدره.
+      </p>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ form -->
+  <section class="card" id="form-card">
+    <div class="card__head">
+      <h2>Your inputs</h2>
+      <p class="card__head-ar" lang="ar" dir="rtl">بياناتك</p>
+    </div>
+
+    <form id="risk-form" class="inputs">
+      <div class="field field--wide">
+        <label class="field__label" for="crop-input">Crop <span lang="ar">/ المحصول</span></label>
+        <input id="crop-input" class="field__control" list="crop-list" autocomplete="off" spellcheck="false" placeholder="Start typing a crop…" />
+        <datalist id="crop-list"></datalist>
+        <p class="field__hint" id="crop-hint">77 crops with at least four years of data.</p>
+      </div>
+
+      <fieldset class="field">
+        <legend class="field__label">Soil <span lang="ar">/ التربة</span></legend>
+        <div class="segmented" id="soil-group" role="radiogroup" aria-label="Soil type">
+          <button type="button" class="segmented__item" data-value="Loam" aria-pressed="true">Loam <span lang="ar">طميية</span></button>
+          <button type="button" class="segmented__item" data-value="Clay" aria-pressed="false">Clay <span lang="ar">طينية</span></button>
+          <button type="button" class="segmented__item" data-value="Sandy" aria-pressed="false">Sandy <span lang="ar">رملية</span></button>
+          <button type="button" class="segmented__item" data-value="Saline" aria-pressed="false">Saline <span lang="ar">مالحة</span></button>
+        </div>
+      </fieldset>
+
+      <fieldset class="field field--water">
+        <legend class="field__label">Water received <span lang="ar">/ المياه</span></legend>
+        <div class="water">
+          <output class="water__value" id="water-value" for="water-input">100 %</output>
+          <input id="water-input" class="water__slider" type="range" min="40" max="100" step="5" value="100" />
+          <p class="field__hint">Share of the crop's water requirement that actually reaches it.</p>
+        </div>
+      </fieldset>
+
+      <fieldset class="field field--wide">
+        <legend class="field__label">Growth stage <span lang="ar">/ مرحلة النمو</span></legend>
+        <div class="segmented segmented--stages" id="stage-group" role="radiogroup" aria-label="Growth stage">
+          <button type="button" class="segmented__item" data-value="vegetative" aria-pressed="false">Vegetative <span lang="ar">خضري</span></button>
+          <button type="button" class="segmented__item" data-value="flowering" aria-pressed="true">Flowering <span lang="ar">إزهار</span></button>
+          <button type="button" class="segmented__item" data-value="grain_filling" aria-pressed="false">Grain filling <span lang="ar">امتلاء</span></button>
+          <button type="button" class="segmented__item" data-value="ripening" aria-pressed="false">Ripening <span lang="ar">نضج</span></button>
+        </div>
+        <p class="field__hint" id="stage-hint">Stage-specific sensitivity is sourced for wheat only.</p>
+      </fieldset>
+
+      <div class="field field--submit">
+        <button class="button" type="submit" id="calculate">Calculate risk</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- ---------------------------------------------------------- result -->
+  <section class="result" id="result" hidden aria-live="polite">
+    <div class="score">
+      <div>
+        <p class="score__label">Total risk</p>
+        <p class="score__value" id="score-value">—</p>
+        <p class="score__max">out of 100</p>
+      </div>
+      <div class="score__verdict">
+        <span class="chip" id="score-chip">—</span>
+        <p class="score__sentence" id="score-sentence"></p>
+        <p class="score__ar" id="score-ar" lang="ar" dir="rtl"></p>
+      </div>
+    </div>
+
+    <div class="figures">
+      <div>
+        <p class="figure__label">Base forecast <span id="forecast-year">2025</span></p>
+        <p class="figure__value" id="forecast-value">—</p>
+        <p class="figure__sub">kg/ha · last year repeated</p>
+      </div>
+      <div>
+        <p class="figure__label">Expected yield</p>
+        <p class="figure__value figure__value--gold" id="expected-value">—</p>
+        <p class="figure__sub">kg/ha · after your water level</p>
+      </div>
+      <div>
+        <p class="figure__label">Drop probability</p>
+        <p class="figure__value" id="drop-value">—</p>
+        <p class="figure__sub">above 10 % next year</p>
+      </div>
+    </div>
+
+    <div class="split">
+      <div>
+        <h3 class="subhead">Where the score comes from</h3>
+        <ul class="bars" id="bars"></ul>
+        <p class="caption" id="bars-caption"></p>
+      </div>
+
+      <div>
+        <h3 class="subhead">Why the model said that</h3>
+        <ul class="drivers" id="drivers"></ul>
+        <p class="caption">Exact SHAP values for this crop: red pushes risk up, green pushes it down.</p>
+      </div>
+    </div>
+
+    <figure class="chart">
+      <canvas id="chart" height="260" aria-label="Yield history with next-year markers"></canvas>
+    </figure>
+    <p class="caption" id="chart-caption"></p>
+
+    <details class="assumptions">
+      <summary>Sources, assumptions and limits</summary>
+      <ul id="assumption-list"></ul>
+    </details>
+  </section>
+</main>
+
+<footer class="footer">
+  <span>Data: FAOSTAT QCL, Egypt, 1990–2024.</span>
+  <span aria-hidden="true">·</span>
+  <a href="/docs">API documentation</a>
+  <span aria-hidden="true">·</span>
+  <a href="/v1/meta">Rules and assumptions (JSON)</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="./app.js?v=1"></script>
+</body>
+</html>

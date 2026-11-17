@@ -1,13 +1,49 @@
-# Egypt Crop Risk API
+# Egypt Crop Risk — API + interface
 
-The crop-risk notebook (`crop_project_short.ipynb`) and its Streamlit app, served as
-an HTTP API instead of a UI. Same data, same models, same honest numbers — but a
-JSON contract that a phone app, a dashboard or a notebook can call.
+**Live:** <https://mohamed-sherif-data--crop-api.modal.run> · **Docs:** [`/docs`](https://mohamed-sherif-data--crop-api.modal.run/docs)
 
-The Streamlit sliders are now one `POST /v1/risk/report` request:
+The crop-risk notebook (`crop_project_short.ipynb`) and its Streamlit app, rebuilt as
+one FastAPI service with two faces:
+
+- a **web interface** where a visitor picks four things — crop, soil, water, growth
+  stage — and gets one report;
+- a **JSON API** on the same origin that a phone app, a dashboard or a notebook can
+  call directly.
+
+Same data, same models, same honest numbers. No Streamlit, no `shap`, no matplotlib.
+
+![The interface](docs/media/live/ui-hero.png)
+
+## The interface
+
+Four inputs, nothing else. The page opens on Wheat, full water, flowering — the
+sensible default — and recalculates the moment anything changes.
+
+| Input | What it means |
+|---|---|
+| Crop | 77 crops with at least four years of data, type-ahead over the FAOSTAT list |
+| Soil | Loam / Clay / Sandy / Saline |
+| Water received | 40–100 % of the crop's requirement, a slider |
+| Growth stage | Vegetative / Flowering / Grain filling / Ripening |
+
+The report answers, in this order: the total score out of 100 and its band, the
+naive forecast, the expected yield after your water level, the probability of a
+>10 % drop, where the score came from, why the model said it, and the yield history
+with the forecast markers drawn on the end of the line.
+
+![A completed report](docs/media/live/ui-result.png)
+
+Every report repeats its own assumptions, so a guess never looks like a source.
+The chart is the only remote dependency (Chart.js from a CDN); the rest of the page
+is served by the same container as the API, with `no-store` on the HTML so a
+redeploy can never leave a stale page behind.
+
+## Call the API
+
+The sliders are one `POST /v1/risk/report` request:
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/v1/risk/report \
+curl -s -X POST https://mohamed-sherif-data--crop-api.modal.run/v1/risk/report \
   -H "Content-Type: application/json" \
   -d '{"crop": "Wheat", "soil": "Sandy", "water_percent": 70, "stage": "flowering"}'
 ```
@@ -34,22 +70,21 @@ curl -s -X POST http://127.0.0.1:8000/v1/risk/report \
 }
 ```
 
-## Run it
+## Run it locally
 
 ```bash
 py -m pip install -r requirements.txt
 
-fastapi dev api/main.py          # reload on save, http://127.0.0.1:8000/docs
-fastapi run api/main.py          # production
+py -m uvicorn api.main:app --port 8100      # interface at /, docs at /docs, reload off
+fastapi dev api/main.py                     # reload on save
+fastapi run api/main.py                     # production
 ```
-
-No Streamlit, no `shap`, no matplotlib: the risk explanation is computed in
-closed form (see *Why no shap* below).
 
 ## Endpoints
 
 | Method | Path | Answers |
 |---|---|---|
+| GET | `/` | The interface itself (`web/index.html`) |
 | GET | `/v1/health` | Is the service up, and how big is the dataset? |
 | GET | `/v1/meta` | Split year, thresholds, soils, stages, Ky values, assumptions |
 | GET | `/v1/crops` | The 77 usable crops with their history span |
@@ -61,7 +96,7 @@ closed form (see *Why no shap* below).
 
 Interactive docs: **`/docs`**. Machine-readable: `/openapi.json`.
 
-## What the API promises
+## What the service promises
 
 - **Year-based split, never random.** Fit on ≤ 2015, judge on 2016–2024, so no
   future information reaches training.
@@ -92,25 +127,49 @@ ripening 0.1 (FAO; ripening is the loosest of the four).
 ## Project layout
 
 ```
-engine.py                 data + models + report logic (importable, testable)
-api/main.py               FastAPI app, routers, lifespan (one fit per container)
-api/schemas.py            request/response contract
-data/…Raw.csv             FAOSTAT export
-tests/test_api.py         21 contract tests, including the notebook's worked examples
+engine.py                  data + models + report logic (importable, testable)
+api/main.py                FastAPI app, lifespan, cache policy, static mount
+api/schemas.py             request/response contract
+web/index.html             the interface
+web/styles.css             ink + gold, segmented controls, responsive
+web/app.js                 submit → POST /v1/risk/report → render
+data/…Raw.csv              FAOSTAT export
+tests/test_api.py          22 contract tests, including the notebook's worked examples
+scripts/modal_app.py       Modal deploy, label crop-api (keeps the same URL)
+scripts/check_ui.py        20 browser assertions against local or live
+scripts/screenshots.py     regenerates the images in docs/media/
+docs/media/live/           screenshots taken from the deployed service
 ```
 
 ## Tests
 
 ```bash
-py -m pytest -q      # 21 passed
+py -m pytest -q                              # 22 passed
+py -m uvicorn api.main:app --port 8100       # then, in another shell:
+py scripts/check_ui.py                       # 20 browser checks, local
+py scripts/check_ui.py https://mohamed-sherif-data--crop-api.modal.run   # and live
 ```
 
-They pin the notebook's numbers: naive MAPE 6.38 %, risk AUC 0.597, base rate
-8.58 %, riskiest decile 22.4 %, and Farmer B's total score of 31.85 / 100.
+The API tests pin the notebook's numbers: naive MAPE 6.38 %, risk AUC 0.597, base
+rate 8.58 %, riskiest decile 22.4 %, and Farmer B's total score of 31.85 / 100.
+The browser tests pin the same number through the interface (31.9 shown), plus
+the phone layout, the chart, the drivers and the unknown-crop refusal.
 
 ## Deploy
 
-`Dockerfile` runs the same app on any container host:
+The public URL is a Modal web endpoint labelled `crop-api`:
+
+```bash
+py -m modal deploy scripts/modal_app.py
+```
+
+That label can only belong to one app at a time, so the previous project
+(`egypt-crop-analytics`, deployed from `D:\Obsidian\Full_Deployment`) was stopped
+with `py -m modal app stop --yes egypt-crop-analytics` to free
+`mohamed-sherif-data--crop-api`. Redeploying that folder restores the old app, but
+it would take the label back and this service would need a different one.
+
+The same app also runs anywhere with Docker:
 
 ```bash
 docker build -t crop-risk-api .
@@ -119,8 +178,11 @@ docker run -p 8000:8000 crop-risk-api
 
 ## الخلاصة بالعربي
 
-المشروع بقى **خدمة FastAPI** بدل واجهة Streamlit: نفس الداتا ونفس الموديلات
-ونفس الأرقام، بس على شكل JSON. أهم نقطتين:
+الخدمة على نفس الرابط: **https://mohamed-sherif-data--crop-api.modal.run** — بقى
+فيها صفحة عربية/إنجليزية بسيطة يختار فيها الزائر أربع حاجات (المحصول، التربة،
+المياه، مرحلة النمو) وتطلع له النتيجة بالأسباب، وتحتها نفس الـ API لأي عميل.
+
+أهم نقطتين:
 
 1. **التوقع الأساسي هو Naive** (السنة القادمة = السنة الحالية) لأنه كان الأدق
    فعلاً على 2016–2024، والـ API بيقول ده بصراحة في `/v1/models/metrics`.
