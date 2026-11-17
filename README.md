@@ -155,6 +155,23 @@ rate 8.58 %, riskiest decile 22.4 %, and Farmer B's total score of 31.85 / 100.
 The browser tests pin the same number through the interface (31.9 shown), plus
 the phone layout, the chart, the drivers and the unknown-crop refusal.
 
+## Put it on GitHub
+
+The project carries no secrets — the Modal token lives in your own
+`~/.modal.toml`, never in the repo. So a fresh clone can go straight up:
+
+```bash
+git init
+git add .
+git commit -m "Egypt crop risk: FastAPI service and interface"
+gh repo create egypt-crop-risk --public --source=. --push
+```
+
+Without `gh`: create the empty repository on github.com, then
+`git remote add origin <url> && git push -u origin main`.
+`.gitignore` already keeps `__pycache__/`, `.pytest_cache/`, `.venv/`,
+`dist/` and `.verify/` out of the history.
+
 ## Deploy
 
 The public URL is a Modal web endpoint labelled `crop-api`:
