@@ -54,6 +54,8 @@ const MODEL_PROSE = {
   forest: "Random forest",
 };
 
+const MODEL_NOTE = { naive: "last year repeated", poly: "degree 2", linear: "least squares", forest: "100 trees" };
+
 let chart = null;
 let crops = [];
 let metrics = [];
@@ -144,16 +146,25 @@ function wireSegments() {
     group.addEventListener("click", (event) => {
       const button = event.target.closest(".segmented__item");
       if (!button) return;
+      if (key === "forecast_model") {
+        chooseModel(button.dataset.value);
+        return;
+      }
       selected[key] = button.dataset.value;
       group.querySelectorAll(".segmented__item").forEach((item) => {
         item.setAttribute("aria-pressed", String(item === button));
       });
-      if (key === "forecast_model") {
-        paintModelHint();
-        if (!$("result").hidden) calculate();
-      }
     });
   }
+}
+
+function chooseModel(model) {
+  selected.forecast_model = model;
+  $("model-group").querySelectorAll(".segmented__item").forEach((item) => {
+    item.setAttribute("aria-pressed", String(item.dataset.value === model));
+  });
+  paintModelHint();
+  if (!$("result").hidden) calculate();
 }
 
 function paintModelHint() {
@@ -183,6 +194,12 @@ function wireForm() {
   $("risk-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     await calculate();
+  });
+
+  $("model-results").addEventListener("click", (event) => {
+    const button = event.target.closest(".models__pick");
+    if (!button || button.dataset.model === selected.forecast_model) return;
+    chooseModel(button.dataset.model);
   });
 }
 
@@ -245,6 +262,7 @@ function render(report, history) {
     `kg/ha · ${MODEL_NAMES[report.forecast_model]} · ${one.format(chosen.mape_pct)} % error`;
 
   renderBars(report);
+  renderModelResults(report);
   renderDrivers(report);
   renderAssumptions(report.assumptions);
   drawChart(report, history, chosen);
@@ -297,6 +315,25 @@ function renderBars(report) {
   const capped = report.total_score >= 100 ? " Capped at 100." : "";
   $("bars-caption").textContent =
     `Total ${one.format(report.total_score)} / 100 — model risk plus the water and soil penalties.${capped}`;
+}
+
+function renderModelResults(report) {
+  $("models-year").textContent = report.target_year;
+  $("model-results").innerHTML = report.forecasts
+    .map((row) => {
+      const active = row.model === report.forecast_model;
+      return `<tr class="models__row${active ? " is-active" : ""}">
+        <th scope="row">
+          <button type="button" class="models__pick" data-model="${row.model}" aria-pressed="${active}">
+            ${MODEL_SHORT[row.model]}
+            <span>${MODEL_NOTE[row.model]}</span>
+          </button>
+        </th>
+        <td class="models__value">${num.format(Math.round(row.value_kg_ha))}</td>
+        <td class="models__error">${one.format(row.mape_pct)} %</td>
+      </tr>`;
+    })
+    .join("");
 }
 
 function renderDrivers(report) {

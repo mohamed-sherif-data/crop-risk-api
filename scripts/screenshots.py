@@ -33,6 +33,20 @@ def farmer_b(page) -> None:
     page.wait_for_timeout(1200)
 
 
+def freeze_chart(page) -> None:
+    """Draw the chart without its resize animation, so a full-page shot is not
+    captured mid-transition (the canvas stretches with the viewport)."""
+    page.evaluate(
+        """() => {
+            if (!window.Chart) return;
+            Chart.defaults.animation = false;
+            const chart = Chart.getChart('chart');
+            if (chart) { chart.options.animation = false; chart.resize(); chart.update('none'); }
+        }"""
+    )
+    page.wait_for_timeout(500)
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -46,6 +60,7 @@ def main() -> None:
         page.locator("#form-card").screenshot(path=OUT / "ui-form.png")
 
         farmer_b(page)
+        freeze_chart(page)
         page.add_style_tag(content=".topbar, .status { display: none !important; }")
         page.wait_for_timeout(150)
         page.screenshot(path=OUT / "ui-result.png", full_page=True)
@@ -57,6 +72,7 @@ def main() -> None:
         phone.goto(BASE, wait_until="networkidle")
         ready(phone)
         farmer_b(phone)
+        freeze_chart(phone)
         phone.screenshot(path=OUT / "ui-phone.png", full_page=True)
 
         browser.close()

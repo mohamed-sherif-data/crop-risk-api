@@ -403,6 +403,78 @@ h1, h2 { font-family: var(--serif); }
 
 .figure__sub { margin: 0.4rem 0 0; font-size: 0.74rem; color: var(--muted-dim); }
 
+/* four-model comparison */
+.models {
+  padding: 1.6rem 0 1.2rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.subhead__ar {
+  margin-inline-start: 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: var(--muted-dim);
+}
+
+.models__table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 0.86rem;
+}
+
+.models__table th,
+.models__table td {
+  text-align: start;
+  padding: 0.55rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.models__table thead th {
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 400;
+  color: var(--muted-dim);
+}
+
+.models__table thead th:first-child { width: 50%; }
+
+.models__row { transition: background 0.15s ease; }
+.models__row:hover { background: rgba(255, 255, 255, 0.03); }
+
+.models__row.is-active { background: rgba(212, 175, 55, 0.08); }
+.models__row.is-active th { box-shadow: inset 2px 0 0 var(--gold); }
+
+.models__pick {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.models__pick span { font-size: 0.74rem; color: var(--muted-dim); }
+
+.models__pick:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+
+.models__value,
+.models__error { font-variant-numeric: tabular-nums; }
+
+.models__value { font-size: 0.95rem; }
+
+.models__error { color: var(--muted-dim); }
+
+.models__row.is-active .models__error { color: var(--gold-soft); }
+
+.models .caption { margin-top: 0.9rem; }
+
 /* split panels */
 .split {
   display: grid;
@@ -512,6 +584,11 @@ h1, h2 { font-family: var(--serif); }
   .figures > div:last-child { grid-column: 1 / -1; padding-top: 0.6rem; border-top: 1px solid var(--line); }
 
   .split { grid-template-columns: 1fr; gap: 1.8rem; }
+
+  .models__table thead th:first-child { width: 44%; }
+  .models__wide { display: none; }
+  .models__table { font-size: 0.82rem; }
+  .models__pick span { font-size: 0.7rem; }
 
   .score { align-items: flex-start; }
   .score__verdict { max-width: none; }

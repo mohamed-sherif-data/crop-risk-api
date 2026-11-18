@@ -39,6 +39,11 @@ Switching the model re-asks the API immediately — the toggle never shows a cac
 number next to a new label, and the hint under it quotes that model's out-of-sample
 error so a weaker choice is visible before you read the yield.
 
+Under the figures, all four results sit side by side in one small table: the 2025
+yield each model predicts and the error it earned, with the active one highlighted.
+Clicking a row switches the forecast, so the comparison and the control can never
+disagree.
+
 ![A completed report](docs/media/live/ui-result.png)
 
 Every report repeats its own assumptions, so a guess never looks like a source.
@@ -161,7 +166,7 @@ web/app.js                 submit → POST /v1/risk/report → render
 data/…Raw.csv              FAOSTAT export
 tests/test_api.py          26 contract tests, including the notebook's worked examples
 scripts/modal_app.py       Modal deploy, label crop-api (keeps the same URL)
-scripts/check_ui.py        29 browser assertions against local or live
+scripts/check_ui.py        34 browser assertions against local or live
 scripts/screenshots.py     regenerates the images in docs/media/
 docs/media/live/           screenshots taken from the deployed service
 requirements.txt           runtime pins (scikit-learn pinned for stable scores)
@@ -173,7 +178,7 @@ requirements-dev.txt       the above plus pytest and httpx
 ```bash
 py -m pytest -q                              # 26 passed
 py -m uvicorn api.main:app --port 8100       # then, in another shell:
-py scripts/check_ui.py                       # 29 browser checks, local
+py scripts/check_ui.py                       # 34 browser checks, local
 py scripts/check_ui.py https://mohamed-sherif-data--crop-api.modal.run   # and live
 ```
 

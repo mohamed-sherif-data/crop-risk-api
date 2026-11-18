@@ -90,15 +90,31 @@ def main() -> None:
         check("the model hint quotes the error", "6.4" in page.inner_text("#model-hint"))
         check("the forecast figure names its model", "Naive" in page.inner_text("#forecast-sub"))
 
-        page.click("#model-group [data-value='poly']")
+        # All four results are on the page at once, not hidden behind the toggle.
+        check("all four results are listed", page.locator("#model-results .models__row").count() == 4)
+        table = page.inner_text("#model-results")
+        check("the table carries every model's yield",
+              all(value in table for value in ("6,778", "6,716", "7,387", "5,721")), table.replace("\n", " | ")[:90])
+        check(
+            "the table marks the active model",
+            page.inner_text("#model-results .models__row.is-active").startswith("Naive"),
+        )
+
+        page.click("#model-results [data-model='poly']")
         page.wait_for_function(
             "document.getElementById('forecast-sub').textContent.includes('Polynomial')",
             timeout=120_000,
         )
         page.wait_for_timeout(400)
-        check("polynomial gives its own forecast", page.inner_text("#forecast-value") == "6,716",
+        check("clicking a row switches the forecast", page.inner_text("#forecast-value") == "6,716",
               page.inner_text("#forecast-value"))
         check("the expected yield follows the model", page.inner_text("#expected-value") == "5,406")
+        check("the table follows the switch",
+              page.inner_text("#model-results .models__row.is-active").startswith("Polynomial"))
+        check(
+            "both controls stay in sync",
+            page.get_attribute("#model-group [data-value='poly']", "aria-pressed") == "true",
+        )
         check(
             "the chart legend follows the model",
             "Polynomial" in page.evaluate("() => window.Chart.getChart('chart').data.datasets[1].label"),
