@@ -38,9 +38,26 @@ const BAND_TEXT = {
 
 const CROP_COLORS = { model: COLORS.gold, water: COLORS.blue, soil: COLORS.purple };
 
+const MODEL_NAMES = {
+  naive: "Naive · last year repeated",
+  poly: "Polynomial · degree 2",
+  linear: "Linear regression",
+  forest: "Random forest",
+};
+
+const MODEL_SHORT = { naive: "Naive", poly: "Polynomial", linear: "Linear", forest: "Forest" };
+
+const MODEL_PROSE = {
+  naive: "Naive (last year repeated)",
+  poly: "Polynomial regression (degree 2)",
+  linear: "Linear regression",
+  forest: "Random forest",
+};
+
 let chart = null;
 let crops = [];
-let selected = { soil: "Loam", stage: "flowering" };
+let metrics = [];
+let selected = { soil: "Loam", stage: "flowering", forecast_model: "naive" };
 
 /* ------------------------------------------------------------------ helpers */
 async function get(path) {
@@ -93,14 +110,20 @@ async function boot() {
   wireForm();
 
   try {
-    const [meta, catalogue] = await Promise.all([get("/v1/meta"), get("/v1/crops")]);
+    const [meta, catalogue, modelScores] = await Promise.all([
+      get("/v1/meta"),
+      get("/v1/crops"),
+      get("/v1/models/metrics"),
+    ]);
 
     crops = catalogue.items.map((row) => row.item);
+    metrics = modelScores.models;
     $("crop-list").innerHTML = crops.map((item) => `<option value="${item}"></option>`).join("");
     $("crop-hint").textContent = `${catalogue.count} crops with at least four years of data.`;
     $("forecast-year").textContent = meta.target_year;
     $("stage-hint").textContent =
       "Stage-specific sensitivity is sourced for wheat only; other crops use a flat value.";
+    paintModelHint();
 
     const wheat = crops.find((item) => item === "Wheat");
     $("crop-input").value = wheat || crops[0];
@@ -112,7 +135,11 @@ async function boot() {
 }
 
 function wireSegments() {
-  for (const [groupId, key] of [["soil-group", "soil"], ["stage-group", "stage"]]) {
+  for (const [groupId, key] of [
+    ["soil-group", "soil"],
+    ["stage-group", "stage"],
+    ["model-group", "forecast_model"],
+  ]) {
     const group = $(groupId);
     group.addEventListener("click", (event) => {
       const button = event.target.closest(".segmented__item");
@@ -121,8 +148,24 @@ function wireSegments() {
       group.querySelectorAll(".segmented__item").forEach((item) => {
         item.setAttribute("aria-pressed", String(item === button));
       });
+      if (key === "forecast_model") {
+        paintModelHint();
+        if (!$("result").hidden) calculate();
+      }
     });
   }
+}
+
+function paintModelHint() {
+  if (!metrics.length) return;
+  const chosen = metrics.find((row) => row.model === selected.forecast_model);
+  const best = [...metrics].sort((a, b) => a.mape_pct - b.mape_pct)[0];
+  $("model-hint").textContent =
+    chosen.model === best.model
+      ? `${MODEL_PROSE[chosen.model]} is the most accurate of the four: `
+        + `${one.format(chosen.mape_pct)} % error on 2016–2024.`
+      : `${MODEL_PROSE[chosen.model]}: ${one.format(chosen.mape_pct)} % error on 2016–2024 — `
+        + `${MODEL_PROSE[best.model]} scores better at ${one.format(best.mape_pct)} %.`;
 }
 
 function wireWater() {
@@ -197,15 +240,25 @@ function render(report, history) {
   $("expected-value").textContent = num.format(Math.round(report.expected_yield_kg_ha));
   $("drop-value").textContent = `${one.format(report.model_risk_pct)} %`;
 
+  const chosen = report.forecasts.find((row) => row.model === report.forecast_model);
+  $("forecast-sub").textContent =
+    `kg/ha · ${MODEL_NAMES[report.forecast_model]} · ${one.format(chosen.mape_pct)} % error`;
+
   renderBars(report);
   renderDrivers(report);
   renderAssumptions(report.assumptions);
-  drawChart(report, history);
+  drawChart(report, history, chosen);
+
+  const comparison = report.forecasts
+    .map((row) => `${MODEL_SHORT[row.model]} ${num.format(Math.round(row.value_kg_ha))}`)
+    .join(" · ");
 
   $("chart-caption").textContent =
     `${report.crop}: ${history.points.length} annual observations, `
     + `${history.points[0].year}–${report.last_observed_year}. `
-    + `The two markers are ${report.target_year}: the naive forecast and what your water level leaves of it.`;
+    + `${report.target_year} forecasts — ${comparison} kg/ha. `
+    + `The gold marker is the ${MODEL_SHORT[report.forecast_model].toLowerCase()} forecast; `
+    + `red is what your water leaves of it.`;
 }
 
 function bandColor(level) {
@@ -268,7 +321,7 @@ function renderAssumptions(assumptions) {
 }
 
 /* -------------------------------------------------------------------- chart */
-function drawChart(report, history) {
+function drawChart(report, history, chosen) {
   const years = history.points.map((point) => point.year);
   const values = history.points.map((point) => point.value);
   const labels = [...years, report.target_year];
@@ -297,7 +350,7 @@ function drawChart(report, history) {
       pointHoverRadius: 4,
       tension: 0.25,
     },
-    { label: `Naive ${report.target_year}`, ...marker(report.forecast_kg_ha, COLORS.gold) },
+    { label: `${MODEL_SHORT[report.forecast_model]} ${report.target_year}`, ...marker(chosen.value_kg_ha, COLORS.gold) },
     { label: "With your water", ...marker(report.expected_yield_kg_ha, COLORS.red) },
   ];
 

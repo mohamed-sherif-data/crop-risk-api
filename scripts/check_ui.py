@@ -81,6 +81,46 @@ def main() -> None:
         check("the chart is drawn", page.evaluate("() => window.Chart.getChart('chart')?.data.labels.length || 0") > 30)
         check("the assumptions stay visible", "assumption" in page.inner_text(".assumptions").lower())
 
+        # ---------------------------------------------------- forecast models
+        check("all four forecast models are offered", page.locator("#model-group .segmented__item").count() == 4)
+        check(
+            "naive is the default",
+            page.get_attribute("#model-group [data-value='naive']", "aria-pressed") == "true",
+        )
+        check("the model hint quotes the error", "6.4" in page.inner_text("#model-hint"))
+        check("the forecast figure names its model", "Naive" in page.inner_text("#forecast-sub"))
+
+        page.click("#model-group [data-value='poly']")
+        page.wait_for_function(
+            "document.getElementById('forecast-sub').textContent.includes('Polynomial')",
+            timeout=120_000,
+        )
+        page.wait_for_timeout(400)
+        check("polynomial gives its own forecast", page.inner_text("#forecast-value") == "6,716",
+              page.inner_text("#forecast-value"))
+        check("the expected yield follows the model", page.inner_text("#expected-value") == "5,406")
+        check(
+            "the chart legend follows the model",
+            "Polynomial" in page.evaluate("() => window.Chart.getChart('chart').data.datasets[1].label"),
+        )
+        check("the hint now flags a weaker model", "Naive (last year repeated)" in page.inner_text("#model-hint"))
+
+        page.click("#model-group [data-value='forest']")
+        page.wait_for_function(
+            "document.getElementById('forecast-sub').textContent.includes('Random forest')",
+            timeout=120_000,
+        )
+        page.wait_for_timeout(400)
+        check("random forest gives a third answer", page.inner_text("#forecast-value") == "5,721",
+              page.inner_text("#forecast-value"))
+
+        page.click("#model-group [data-value='naive']")
+        page.wait_for_function(
+            "document.getElementById('forecast-sub').textContent.includes('Naive')",
+            timeout=120_000,
+        )
+        page.wait_for_timeout(400)
+
         # A different crop recomputes rather than reusing the previous answer.
         page.fill("#crop-input", "Rice")
         page.click("#soil-group [data-value='Clay']")

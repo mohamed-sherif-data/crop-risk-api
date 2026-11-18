@@ -21,6 +21,7 @@ from engine import (
     ASSUMPTIONS,
     DECLINE_THRESHOLD,
     FEATURE_LABELS,
+    FORECAST_MODELS,
     KY_WHEAT,
     SOIL_POINTS,
     SPLIT_YEAR,
@@ -49,8 +50,11 @@ app = FastAPI(
     description=(
         "Replaces the Streamlit risk app with an HTTP service.\n\n"
         "**What it answers**\n\n"
-        "* *What is next year's yield?* The naive baseline (next year = last year) is "
-        "served because it beat linear regression and random forest on 2016-2024.\n"
+        "* *What is next year's yield?* Pick the forecast model: `naive` (last year "
+        "repeated), `poly` (polynomial regression, degree 2), `linear` (linear "
+        "regression) or `forest` (random forest). The naive baseline is the default "
+        "because it beat all three fitted models on 2016-2024, and every response "
+        "carries all four values plus their out-of-sample error.\n"
         "* *How likely is a drop above 10 %?* A logistic regression over three "
         "scale-free changes (`ch1`, `ch2`, `gap`), explained per request with exact "
         "linear SHAP values.\n"
@@ -165,7 +169,13 @@ def history(item: str, engine: EngineDep) -> schemas.HistoryResponse:
 @risk_router.post("/report", response_model=schemas.ReportResponse, summary="Farmer risk report")
 def report(payload: schemas.ReportRequest, engine: EngineDep) -> schemas.ReportResponse:
     try:
-        body = engine.report(payload.crop, payload.soil, payload.water_percent, payload.stage)
+        body = engine.report(
+            payload.crop,
+            payload.soil,
+            payload.water_percent,
+            payload.stage,
+            payload.forecast_model,
+        )
     except KeyError:
         raise HTTPException(
             status_code=404,
@@ -222,6 +232,7 @@ def index() -> dict:
             "/v1/models/metrics",
         ],
         "drivers": list(FEATURE_LABELS),
+        "forecast_models": FORECAST_MODELS,
         "risk_bands": {"low": "0-15", "medium": "15-35", "high": "35-100"},
         "note": "The report's rule-based part (soil points, Ky for non-wheat crops) is assumption-based; see /v1/meta.",
     }

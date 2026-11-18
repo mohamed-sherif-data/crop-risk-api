@@ -4,8 +4,9 @@
 
 The endpoint label is ``crop-api``, so the public URL stays
 ``https://mohamed-sherif-data--crop-api.modal.run`` — same link, new service.
-The image installs the same five packages the app needs; everything else is
-mounted at container start, so a code change redeploys in seconds without a
+The image installs ``requirements.txt`` (the same file Docker uses), so the
+served numbers cannot drift from the local and container builds. Everything else
+is mounted at container start, so a code change redeploys in seconds without a
 rebuild.
 """
 
@@ -20,13 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .workdir("/app")
-    .pip_install(
-        "fastapi>=0.115",
-        "uvicorn>=0.30",
-        "pandas>=2.2,<4",
-        "numpy>=1.26,<3",
-        "scikit-learn>=1.4,<2",
-    )
+    .pip_install_from_requirements(str(ROOT / "requirements.txt"))
     # Local files come last: they are mounted when a container starts, so
     # editing the UI never rebuilds the image.
     .add_local_file(ROOT / "engine.py", "/app/engine.py")

@@ -276,6 +276,9 @@ h1, h2 { font-family: var(--serif); }
 
 .segmented__item:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
 
+/* the four forecast models: same control, slightly tighter labels */
+.segmented--models .segmented__item { padding-inline: 0.2rem; font-size: 0.78rem; }
+
 /* water slider */
 .water { display: grid; gap: 0.55rem; }
 

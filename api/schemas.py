@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 Soil = Literal["Loam", "Clay", "Sandy", "Saline"]
 Stage = Literal["vegetative", "flowering", "grain_filling", "ripening"]
 RiskLevel = Literal["low", "medium", "high"]
+ForecastModel = Literal["naive", "poly", "linear", "forest"]
 
 
 # ------------------------------------------------------------------- meta
@@ -65,7 +66,13 @@ class ReportRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
-                {"crop": "Wheat", "soil": "Sandy", "water_percent": 70, "stage": "flowering"}
+                {
+                    "crop": "Wheat",
+                    "soil": "Sandy",
+                    "water_percent": 70,
+                    "stage": "flowering",
+                    "forecast_model": "naive",
+                }
             ]
         }
     )
@@ -81,6 +88,13 @@ class ReportRequest(BaseModel):
     stage: Stage = Field(
         default="flowering",
         description="Growth stage; only wheat has stage-specific FAO Ky values.",
+    )
+    forecast_model: ForecastModel = Field(
+        default="naive",
+        description=(
+            "Which model produces the yield forecast: `naive` (last year repeated, "
+            "best out of sample), `linear` (linear regression) or `forest` (random forest)."
+        ),
     )
 
 
@@ -99,13 +113,25 @@ class ReportInputs(BaseModel):
     stage: Stage
 
 
+class ForecastOption(BaseModel):
+    model: ForecastModel
+    label: str
+    value_kg_ha: float = Field(description="Next-year yield this model predicts.")
+    mape_pct: float = Field(description="Out-of-sample mean absolute percentage error.")
+    mae_kg_ha: float = Field(description="Out-of-sample mean absolute error.")
+    r2: float
+
+
 class ReportResponse(BaseModel):
     crop: str
     last_observed_year: int
     target_year: int
     latest_yield_kg_ha: float
-    forecast_kg_ha: float = Field(description="Naive forecast: next year equals last year.")
-    expected_yield_kg_ha: float = Field(description="Naive forecast after the water-stress loss.")
+    forecast_model: ForecastModel
+    forecast_label: str
+    forecast_kg_ha: float = Field(description="Forecast for target_year from the selected model.")
+    expected_yield_kg_ha: float = Field(description="Selected forecast after the water-stress loss.")
+    forecasts: list[ForecastOption] = Field(description="All three models, so clients can compare.")
     model_risk_pct: float
     water_loss_pct: float
     soil_points: float
@@ -135,7 +161,7 @@ class RankingResponse(BaseModel):
 
 # ----------------------------------------------------------------- models
 class ForecastMetric(BaseModel):
-    model: Literal["naive", "linear", "forest"]
+    model: ForecastModel
     r2: float
     mae_kg_ha: float
     mape_pct: float

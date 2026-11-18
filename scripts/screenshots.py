@@ -43,6 +43,7 @@ def main() -> None:
         page.goto(BASE, wait_until="networkidle")
         ready(page)
         page.screenshot(path=OUT / "ui-hero.png")
+        page.locator("#form-card").screenshot(path=OUT / "ui-form.png")
 
         farmer_b(page)
         page.add_style_tag(content=".topbar, .status { display: none !important; }")
@@ -59,7 +60,7 @@ def main() -> None:
         phone.screenshot(path=OUT / "ui-phone.png", full_page=True)
 
         browser.close()
-        print(f"wrote 3 images to {OUT}")
+        print(f"wrote 4 images to {OUT}")
 
 
 if __name__ == "__main__":

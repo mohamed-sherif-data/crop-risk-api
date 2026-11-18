@@ -72,6 +72,48 @@ def test_unknown_crop_is_a_404_with_a_useful_message(client):
 
 
 # -------------------------------------------------------------------- report
+def test_forecast_models_can_be_switched(client):
+    """All four models answer, and the chosen one drives the yield figures."""
+    payload = {"crop": "Wheat", "soil": "Sandy", "water_percent": 70, "stage": "flowering"}
+    reports = {
+        model: client.post("/v1/risk/report", json={**payload, "forecast_model": model}).json()
+        for model in ("naive", "poly", "linear", "forest")
+    }
+
+    assert all(body["forecast_model"] == model for model, body in reports.items())
+    assert reports["naive"]["forecast_kg_ha"] == pytest.approx(6777.7, abs=0.5)  # last observed
+    assert len({body["forecast_kg_ha"] for body in reports.values()}) == 4
+
+    for body in reports.values():
+        assert [option["model"] for option in body["forecasts"]] == ["naive", "poly", "linear", "forest"]
+        assert all(option["value_kg_ha"] >= 0 for option in body["forecasts"])
+        assert body["expected_yield_kg_ha"] == pytest.approx(
+            body["forecast_kg_ha"] * (1 - body["water_loss_pct"] / 100), rel=1e-6
+        )
+        # Switching the forecast moves the yield, not the risk probability.
+        assert body["model_risk_pct"] == pytest.approx(
+            reports["naive"]["model_risk_pct"], abs=1e-9
+        )
+
+
+def test_naive_is_the_default(client):
+    body = client.post("/v1/risk/report", json={"crop": "Wheat"}).json()
+    assert body["forecast_model"] == "naive"
+    assert body["forecast_kg_ha"] == pytest.approx(body["latest_yield_kg_ha"], abs=1e-6)
+    assert body["forecast_label"].startswith("Naive")
+
+
+def test_forecast_options_carry_their_out_of_sample_error(client):
+    report = client.post("/v1/risk/report", json={"crop": "Wheat"}).json()
+    metrics = {
+        row["model"]: row for row in client.get("/v1/models/metrics").json()["models"]
+    }
+    for option in report["forecasts"]:
+        assert option["mape_pct"] == pytest.approx(metrics[option["model"]]["mape_pct"])
+        assert option["mae_kg_ha"] == pytest.approx(metrics[option["model"]]["mae_kg_ha"])
+        assert option["label"]
+
+
 def test_farmer_b_matches_the_notebook(client):
     """Sandy soil, 70 % water, flowering wheat: the notebook's worked example."""
     response = client.post(
@@ -139,6 +181,7 @@ def test_drivers_explain_the_model_and_sum_to_a_hundred(client):
         {"crop": "Wheat", "stage": "harvest"},
         {"crop": "Wheat", "water_percent": 120},
         {"crop": "Wheat", "water_percent": -1},
+        {"crop": "Wheat", "forecast_model": "lstm"},
         {},
     ],
 )
@@ -173,7 +216,13 @@ def test_metrics_confirm_the_naive_baseline_wins(client):
 
     assert body["split_year"] == 2015
     assert body["test_years"] == "2016-2024"
-    assert scores["naive"]["mape_pct"] < scores["forest"]["mape_pct"] < scores["linear"]["mape_pct"]
+    assert (
+        scores["naive"]["mape_pct"]
+        < scores["poly"]["mape_pct"]
+        < scores["forest"]["mape_pct"]
+        < scores["linear"]["mape_pct"]
+    )
+    assert len(scores) == 4
     assert scores["naive"]["mape_pct"] == pytest.approx(6.38, abs=0.05)
 
     risk = body["risk"]

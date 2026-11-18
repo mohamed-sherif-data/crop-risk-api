@@ -5,8 +5,8 @@
 The crop-risk notebook (`crop_project_short.ipynb`) and its Streamlit app, rebuilt as
 one FastAPI service with two faces:
 
-- a **web interface** where a visitor picks four things — crop, soil, water, growth
-  stage — and gets one report;
+- a **web interface** where a visitor picks five things — crop, soil, water, growth
+  stage and forecast model — and gets one report;
 - a **JSON API** on the same origin that a phone app, a dashboard or a notebook can
   call directly.
 
@@ -16,8 +16,8 @@ Same data, same models, same honest numbers. No Streamlit, no `shap`, no matplot
 
 ## The interface
 
-Four inputs, nothing else. The page opens on Wheat, full water, flowering — the
-sensible default — and recalculates the moment anything changes.
+Five inputs, nothing else. The page opens on Wheat, full water, flowering and the
+naive model — the sensible default — and recalculates the moment anything changes.
 
 | Input | What it means |
 |---|---|
@@ -25,11 +25,19 @@ sensible default — and recalculates the moment anything changes.
 | Soil | Loam / Clay / Sandy / Saline |
 | Water received | 40–100 % of the crop's requirement, a slider |
 | Growth stage | Vegetative / Flowering / Grain filling / Ripening |
+| Forecast model | Naive (last year repeated) / Polynomial (degree 2) / Linear / Random forest |
+
+![The five inputs](docs/media/live/ui-form.png)
 
 The report answers, in this order: the total score out of 100 and its band, the
-naive forecast, the expected yield after your water level, the probability of a
->10 % drop, where the score came from, why the model said it, and the yield history
-with the forecast markers drawn on the end of the line.
+forecast from the model you picked, the expected yield after your water level, the
+probability of a >10 % drop, where the score came from, why the model said it, and
+the yield history with the chosen forecast and your watered-down yield drawn on the
+end of the line.
+
+Switching the model re-asks the API immediately — the toggle never shows a cached
+number next to a new label, and the hint under it quotes that model's out-of-sample
+error so a weaker choice is visible before you read the yield.
 
 ![A completed report](docs/media/live/ui-result.png)
 
@@ -45,7 +53,7 @@ The sliders are one `POST /v1/risk/report` request:
 ```bash
 curl -s -X POST https://mohamed-sherif-data--crop-api.modal.run/v1/risk/report \
   -H "Content-Type: application/json" \
-  -d '{"crop": "Wheat", "soil": "Sandy", "water_percent": 70, "stage": "flowering"}'
+  -d '{"crop": "Wheat", "soil": "Sandy", "water_percent": 70, "stage": "flowering", "forecast_model": "poly"}'
 ```
 
 ```json
@@ -53,8 +61,16 @@ curl -s -X POST https://mohamed-sherif-data--crop-api.modal.run/v1/risk/report \
   "crop": "Wheat",
   "target_year": 2025,
   "latest_yield_kg_ha": 6777.7,
-  "forecast_kg_ha": 6777.7,
-  "expected_yield_kg_ha": 5456.0,
+  "forecast_model": "poly",
+  "forecast_label": "Polynomial regression (degree 2)",
+  "forecast_kg_ha": 6716.0,
+  "expected_yield_kg_ha": 5406.4,
+  "forecasts": [
+    {"model": "naive", "value_kg_ha": 6777.7, "mape_pct": 6.38, "...": "..."},
+    {"model": "poly", "value_kg_ha": 6716.0, "mape_pct": 8.25, "...": "..."},
+    {"model": "linear", "value_kg_ha": 7386.9, "mape_pct": 13.55, "...": "..."},
+    {"model": "forest", "value_kg_ha": 5721.1, "mape_pct": 10.08, "...": "..."}
+  ],
   "model_risk_pct": 7.35,
   "water_loss_pct": 19.5,
   "soil_points": 5.0,
@@ -73,12 +89,18 @@ curl -s -X POST https://mohamed-sherif-data--crop-api.modal.run/v1/risk/report \
 ## Run it locally
 
 ```bash
-py -m pip install -r requirements.txt
+py -m pip install -r requirements-dev.txt  # runtime + pytest/httpx
+py -m pytest -q                             # 26 contract tests
 
 py -m uvicorn api.main:app --port 8100      # interface at /, docs at /docs, reload off
 fastapi dev api/main.py                     # reload on save
 fastapi run api/main.py                     # production
 ```
+
+`scikit-learn` is pinned in `requirements.txt` because the forest's trees change
+between releases; the pinned version keeps the local, Docker and Modal scores
+identical. `requirements-dev.txt` adds the test packages, and `Dockerfile` and
+`scripts/modal_app.py` both install the same runtime file.
 
 ## Endpoints
 
@@ -91,7 +113,7 @@ fastapi run api/main.py                     # production
 | GET | `/v1/crops/{item}/history` | Annual yield series for one crop |
 | POST | `/v1/risk/report` | The farmer report: risk, expected yield, drivers |
 | GET | `/v1/risk/ranking?limit=10` | Crops most likely to drop more than 10 % |
-| GET | `/v1/models/metrics` | Out-of-sample scores for naive / linear / forest, and the risk model |
+| GET | `/v1/models/metrics` | Out-of-sample scores for naive / polynomial / linear / random forest, and the risk model |
 | GET | `/docs` | Swagger UI generated from the same schemas |
 
 Interactive docs: **`/docs`**. Machine-readable: `/openapi.json`.
@@ -101,9 +123,12 @@ Interactive docs: **`/docs`**. Machine-readable: `/openapi.json`.
 - **Year-based split, never random.** Fit on ≤ 2015, judge on 2016–2024, so no
   future information reaches training.
 - **Scaling after the split.** `StandardScaler` is fitted on training rows only.
-- **The baseline is served as the forecast.** Next year = last year won on the
-  held-out years (MAPE 6.4 % vs 10.1 % for random forest and 13.6 % for linear
-  regression). `/v1/models/metrics` publishes exactly that instead of hiding it.
+- **The baseline is served as the forecast, and every alternative is one request
+  away.** Next year = last year won on the held-out years: MAPE 6.4 %, against
+  8.2 % for polynomial regression (degree 2), 10.1 % for random forest and 13.6 %
+  for linear regression. `/v1/models/metrics` publishes all four, each report
+  repeats the same errors next to its own values, and the toggle lets you see the
+  disagreement for yourself. A degree-3 polynomial scored 14.7 % and is not served.
 - **Explanations are exact, not approximate.** For a logistic regression, SHAP
   values are `coef_j × (x_j − mean_j)` in log-odds, which is what
   `shap.LinearExplainer` computes. Doing it in closed form drops a heavy
@@ -134,19 +159,21 @@ web/index.html             the interface
 web/styles.css             ink + gold, segmented controls, responsive
 web/app.js                 submit → POST /v1/risk/report → render
 data/…Raw.csv              FAOSTAT export
-tests/test_api.py          22 contract tests, including the notebook's worked examples
+tests/test_api.py          26 contract tests, including the notebook's worked examples
 scripts/modal_app.py       Modal deploy, label crop-api (keeps the same URL)
-scripts/check_ui.py        20 browser assertions against local or live
+scripts/check_ui.py        29 browser assertions against local or live
 scripts/screenshots.py     regenerates the images in docs/media/
 docs/media/live/           screenshots taken from the deployed service
+requirements.txt           runtime pins (scikit-learn pinned for stable scores)
+requirements-dev.txt       the above plus pytest and httpx
 ```
 
 ## Tests
 
 ```bash
-py -m pytest -q                              # 22 passed
+py -m pytest -q                              # 26 passed
 py -m uvicorn api.main:app --port 8100       # then, in another shell:
-py scripts/check_ui.py                       # 20 browser checks, local
+py scripts/check_ui.py                       # 29 browser checks, local
 py scripts/check_ui.py https://mohamed-sherif-data--crop-api.modal.run   # and live
 ```
 
@@ -202,6 +229,8 @@ docker run -p 8000:8000 crop-risk-api
 أهم نقطتين:
 
 1. **التوقع الأساسي هو Naive** (السنة القادمة = السنة الحالية) لأنه كان الأدق
-   فعلاً على 2016–2024، والـ API بيقول ده بصراحة في `/v1/models/metrics`.
+   فعلاً على 2016–2024 (خطأ 6.4 %)، لكن فيه زرار تبديل بين أربع نماذج:
+   Naive، Polynomial (درجة 2)، Linear، Random forest — وكل واحد بيظهر جنبه
+   خطؤه الحقيقي، والـ API بيقول الأرقام كلها في `/v1/models/metrics`.
 2. **أي رقم مبني على افتراض مكتوب صراحة** جوه كل رد في `assumptions` — نقاط
    التربة و`Ky` لغير القمح لسه محتاجين مصدر.

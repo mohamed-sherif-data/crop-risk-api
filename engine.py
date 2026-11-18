@@ -10,7 +10,11 @@ The pipeline is the one from ``crop_project_short.ipynb``:
 2. build per-crop lags (``lag1..lag3``, ``mean3``);
 3. split by year — train up to 2015, test from 2016 — never randomly;
 4. scale after the split, fitting on training rows only;
-5. compare against the naive baseline that repeats last year's value.
+5. compare against the naive baseline that repeats last year's value, and against
+   a degree-2 polynomial over the lag features;
+6. serve any of the four forecasts on request, each with the error it earned out
+   of sample, so a client can see the disagreement instead of taking one number
+   on faith.
 
 The risk model is a logistic regression over three scale-free changes
 (``ch1``, ``ch2``, ``gap``), and the farmer report adds the FAO water-loss
@@ -27,7 +31,8 @@ import pandas as pd
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import mean_absolute_error, r2_score, roc_auc_score
-from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 DATA_FILE = Path(__file__).resolve().parent / "data" / "FAOSTAT_Egypt_Agriculture_Raw.csv"
 
@@ -42,6 +47,13 @@ KY_OTHER_CROPS = 1.0  # ASSUMPTION: no stage-specific source for other crops
 
 # ASSUMPTION (no source yet): small penalty per soil type.
 SOIL_POINTS = {"Loam": 0, "Clay": 0, "Sandy": 5, "Saline": 8}
+
+FORECAST_MODELS = {
+    "naive": "Naive: last year repeated",
+    "poly": "Polynomial regression (degree 2)",
+    "linear": "Linear regression",
+    "forest": "Random forest",
+}
 
 RISK_FEATURES = ["ch1", "ch2", "gap"]
 FEATURE_LABELS = {
@@ -184,14 +196,83 @@ class Engine:
 
         linear = LinearRegression().fit(x_train_s, y_train)
         forest = RandomForestRegressor(random_state=42).fit(x_train_s, y_train)
+        # Degree 2 over the four numeric features only: squaring the year and
+        # interacting the lags. Degree 3 scored worse (14.7 % MAPE) and adding
+        # crop dummies to it also scored worse (9.4 %), so neither is served.
+        poly = make_pipeline(PolynomialFeatures(degree=2, include_bias=False), LinearRegression())
+        poly.fit(x_train_s[numeric], y_train)
+
+        # Kept so a single next-year row can be scored by any of the models.
+        self._forecast_numeric = numeric
+        self._forecast_columns = list(features.columns)
+        self._forecast_scaler = scaler
+        self._forecast_models = {"linear": linear, "forest": forest}
+        self._forecast_poly = poly
 
         self.forecast_metrics = {
             "naive": _metrics(y_test, x_test["lag1"].to_numpy()),
+            "poly": _metrics(y_test, poly.predict(x_test_s[numeric])),
             "linear": _metrics(y_test, linear.predict(x_test_s)),
             "forest": _metrics(y_test, forest.predict(x_test_s)),
         }
         self.test_years = f"{int(x_test['Year'].min())}-{int(x_test['Year'].max())}"
         self.test_rows = int(len(x_test))
+
+    def _next_year_row(self, item: str) -> pd.Series:
+        """One feature row: target year, with the last three observed yields as lags."""
+        history = self._yields[self._yields["Item"] == item].sort_values("Year")
+        values = history["Value"].to_numpy()
+        if len(values) < MIN_YEARS_FOR_FORECAST:
+            raise KeyError(item)
+
+        return pd.Series(
+            {
+                "Year": int(history["Year"].iloc[-1]) + 1,
+                "lag1": float(values[-1]),
+                "lag2": float(values[-2]),
+                "lag3": float(values[-3]),
+                "mean3": float((values[-1] + values[-2] + values[-3]) / 3),
+            }
+        )
+
+    def forecasts(self, item: str) -> list[dict]:
+        """All three next-year forecasts, with the error each earned out of sample.
+
+        The naive baseline is not a placeholder: it repeats the last observed
+        yield, and on 2016-2024 it beat both fitted models.
+        """
+        crop = self.resolve(item)
+        if crop is None:
+            raise KeyError(item)
+
+        row = self._next_year_row(crop)
+        frame = pd.DataFrame([row])
+        for column in self._forecast_columns:
+            if column.startswith("Item_"):
+                frame[column] = int(column == f"Item_{crop}")
+        frame = frame[self._forecast_columns]
+
+        scaled = frame.copy()
+        scaled[self._forecast_numeric] = self._forecast_scaler.transform(
+            frame[self._forecast_numeric]
+        )
+
+        values = {"naive": float(row["lag1"])}
+        for name, model in self._forecast_models.items():
+            values[name] = float(model.predict(scaled)[0])
+        values["poly"] = float(self._forecast_poly.predict(scaled[self._forecast_numeric])[0])
+
+        return [
+            {
+                "model": name,
+                "label": FORECAST_MODELS[name],
+                "value_kg_ha": max(values[name], 0.0),  # a yield cannot be negative
+                "mape_pct": float(self.forecast_metrics[name]["mape_pct"]),
+                "mae_kg_ha": float(self.forecast_metrics[name]["mae_kg_ha"]),
+                "r2": float(self.forecast_metrics[name]["r2"]),
+            }
+            for name in FORECAST_MODELS
+        ]
 
     # ------------------------------------------------------------------ risk
     def _build_risk_rows(self) -> pd.DataFrame:
@@ -279,10 +360,22 @@ class Engine:
         rows = self._risk_rows[self._risk_rows["Item"] == item].sort_values("Year")
         return rows.tail(1)
 
-    def report(self, item: str, soil: str, water_percent: float, stage: str) -> dict:
+    def report(
+        self,
+        item: str,
+        soil: str,
+        water_percent: float,
+        stage: str,
+        model: str = "naive",
+    ) -> dict:
         crop = self.resolve(item)
         if crop is None:
             raise KeyError(item)
+        if model not in FORECAST_MODELS:
+            raise ValueError(model)
+
+        forecasts = self.forecasts(crop)
+        chosen = next(option for option in forecasts if option["model"] == model)
 
         row = self._latest_row(crop)
         latest_yield = float(row["Value"].iloc[0])
@@ -293,13 +386,18 @@ class Engine:
         soil_points = float(SOIL_POINTS[soil])
         total = min(model_risk + water_loss + soil_points, 100.0)
 
+        forecast_yield = chosen["value_kg_ha"]
+
         return {
             "crop": crop,
             "last_observed_year": int(row["Year"].iloc[0]),
             "target_year": int(row["Year"].iloc[0]) + 1,
             "latest_yield_kg_ha": latest_yield,
-            "forecast_kg_ha": latest_yield,  # naive: next year = last year
-            "expected_yield_kg_ha": latest_yield * (1 - water_loss / 100),
+            "forecast_model": model,
+            "forecast_label": chosen["label"],
+            "forecast_kg_ha": forecast_yield,
+            "expected_yield_kg_ha": forecast_yield * (1 - water_loss / 100),
+            "forecasts": forecasts,
             "model_risk_pct": model_risk,
             "water_loss_pct": water_loss,
             "soil_points": soil_points,

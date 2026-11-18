@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500&family=IBM+Plex+Sans+Arabic:wght@300;400;500&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="./styles.css?v=1" />
+<link rel="stylesheet" href="./styles.css?v=2" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌾</text></svg>" />
 </head>
 <body>
@@ -33,11 +33,12 @@
       <p class="eyebrow">FAOSTAT · Egypt · 1990–2024</p>
       <h1>How risky is this season<br />for your crop?</h1>
       <p class="lede">
-        Four inputs — crop, soil, water and growth stage. The model reads the
-        crop's own history, then adds the water you can actually supply.
+        Five inputs — crop, soil, water, growth stage, and which forecast model to
+        trust. The report reads the crop's own history, then adds the water you can
+        actually supply.
       </p>
       <p class="lede-ar" lang="ar" dir="rtl">
-        أربع مدخلات فقط: المحصول، التربة، المياه المتاحة، ومرحلة النمو — والنتيجة
+        خمس مدخلات: المحصول، التربة، المياه المتاحة، مرحلة النمو، ونموذج التنبؤ — والنتيجة
         توضّح الخطر وتشرح مصدره.
       </p>
     </div>
@@ -88,6 +89,17 @@
         <p class="field__hint" id="stage-hint">Stage-specific sensitivity is sourced for wheat only.</p>
       </fieldset>
 
+      <fieldset class="field field--wide">
+        <legend class="field__label">Forecast model <span lang="ar">/ نموذج التنبؤ</span></legend>
+        <div class="segmented segmented--models" id="model-group" role="radiogroup" aria-label="Forecast model">
+          <button type="button" class="segmented__item" data-value="naive" aria-pressed="true">Naive <span lang="ar">خط الأساس</span></button>
+          <button type="button" class="segmented__item" data-value="poly" aria-pressed="false">Polynomial <span lang="ar">كثير الحدود</span></button>
+          <button type="button" class="segmented__item" data-value="linear" aria-pressed="false">Linear <span lang="ar">انحدار خطي</span></button>
+          <button type="button" class="segmented__item" data-value="forest" aria-pressed="false">Forest <span lang="ar">غابة عشوائية</span></button>
+        </div>
+        <p class="field__hint" id="model-hint">Out-of-sample error on 2016–2024: lower is better.</p>
+      </fieldset>
+
       <div class="field field--submit">
         <button class="button" type="submit" id="calculate">Calculate risk</button>
       </div>
@@ -111,9 +123,9 @@
 
     <div class="figures">
       <div>
-        <p class="figure__label">Base forecast <span id="forecast-year">2025</span></p>
+        <p class="figure__label">Forecast <span id="forecast-year">2025</span></p>
         <p class="figure__value" id="forecast-value">—</p>
-        <p class="figure__sub">kg/ha · last year repeated</p>
+        <p class="figure__sub" id="forecast-sub">kg/ha · last year repeated</p>
       </div>
       <div>
         <p class="figure__label">Expected yield</p>
@@ -162,6 +174,6 @@
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="./app.js?v=1"></script>
+<script src="./app.js?v=2"></script>
 </body>
 </html>
