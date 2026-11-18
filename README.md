@@ -181,10 +181,10 @@ py -m modal deploy scripts/modal_app.py
 ```
 
 That label can only belong to one app at a time, so the previous project
-(`egypt-crop-analytics`, deployed from `D:\Obsidian\Full_Deployment`) was stopped
-with `py -m modal app stop --yes egypt-crop-analytics` to free
-`mohamed-sherif-data--crop-api`. Redeploying that folder restores the old app, but
-it would take the label back and this service would need a different one.
+(`egypt-crop-analytics`) was stopped with
+`py -m modal app stop --yes egypt-crop-analytics` to free
+`mohamed-sherif-data--crop-api`. Redeploying the older project restores it, but it
+would take the label back and this service would need a different one.
 
 The same app also runs anywhere with Docker:
 
