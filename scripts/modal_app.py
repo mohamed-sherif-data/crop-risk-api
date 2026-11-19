@@ -2,11 +2,11 @@
 
     py -m modal deploy scripts/modal_app.py
 
-The endpoint label is ``crop-risk``, so the public URL is
-``https://mohamed-sherif-data--crop-risk.modal.run``. The label is the part of
-the URL this project owns: changing it moves the link, and the old one stops
-answering (Modal has no redirect), so labels should be picked before a link is
-shared widely.
+The public URL is ``https://crop-risk--api.modal.run`` and it is built from two
+names, neither of which is a person: the Modal workspace (``crop-risk``) and the
+endpoint label (``api``). Changing either moves the link and the old one stops
+answering, because Modal has no redirect, so both are chosen to be readable by a
+team rather than by an account.
 The image installs ``requirements.txt`` (the same file Docker uses), so the
 served numbers cannot drift from the local and container builds. Everything else
 is mounted at container start, so a code change redeploys in seconds without a
@@ -33,13 +33,14 @@ image = (
     .add_local_dir(ROOT / "web", "/app/web")
 )
 
-app = modal.App("egypt-crop-risk", image=image)
+app = modal.App("crop-risk", image=image)
 
 
 @app.function(min_containers=0, max_containers=1)
-@modal.asgi_app(label="crop-risk")
+@modal.asgi_app(label="api")
 def crop_api():
     """The FastAPI application, exactly as served locally and in Docker."""
     from api.main import app as web_app
 
     return web_app
+

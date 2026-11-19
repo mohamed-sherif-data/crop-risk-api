@@ -1,6 +1,6 @@
 # Egypt Crop Risk — API + interface
 
-**Live:** <https://mohamed-sherif-data--crop-risk.modal.run> · **Docs:** [`/docs`](https://mohamed-sherif-data--crop-risk.modal.run/docs) · **Source:** <https://github.com/mohamed-sherif-data/crop-risk-api>
+**Live:** <https://crop-risk--api.modal.run> · **Docs:** [`/docs`](https://crop-risk--api.modal.run/docs) · **Source:** <https://github.com/mohamed-sherif-data/crop-risk-api>
 
 The crop-risk notebook (`crop_project_short.ipynb`) and its Streamlit app, rebuilt as
 one FastAPI service with two faces:
@@ -56,7 +56,7 @@ redeploy can never leave a stale page behind.
 The sliders are one `POST /v1/risk/report` request:
 
 ```bash
-curl -s -X POST https://mohamed-sherif-data--crop-risk.modal.run/v1/risk/report \
+curl -s -X POST https://crop-risk--api.modal.run/v1/risk/report \
   -H "Content-Type: application/json" \
   -d '{"crop": "Wheat", "soil": "Sandy", "water_percent": 70, "stage": "flowering", "forecast_model": "poly"}'
 ```
@@ -179,7 +179,7 @@ requirements-dev.txt       the above plus pytest and httpx
 py -m pytest -q                              # 26 passed
 py -m uvicorn api.main:app --port 8100       # then, in another shell:
 py scripts/check_ui.py                       # 34 browser checks, local
-py scripts/check_ui.py https://mohamed-sherif-data--crop-risk.modal.run   # and live
+py scripts/check_ui.py https://crop-risk--api.modal.run   # and live
 ```
 
 The API tests pin the notebook's numbers: naive MAPE 6.38 %, risk AUC 0.597, base
@@ -196,7 +196,7 @@ The project carries no secrets — the Modal token lives in your own
 git init
 git add .
 git commit -m "Egypt crop risk: FastAPI service and interface"
-gh repo create egypt-crop-risk --public --source=. --push
+gh repo create crop-risk-api --public --source=. --push
 ```
 
 Without `gh`: create the empty repository on github.com, then
@@ -206,17 +206,18 @@ Without `gh`: create the empty repository on github.com, then
 
 ## Deploy
 
-The public URL is a Modal web endpoint labelled `crop-risk`:
+The public URL is `https://crop-risk--api.modal.run`, which is two names joined:
 
-```bash
-py -m modal deploy scripts/modal_app.py
-```
+| part | value | where it comes from |
+| --- | --- | --- |
+| workspace | `crop-risk` | the Modal workspace (Dashboard → Identity & provisioning) |
+| endpoint label | `api` | `@modal.asgi_app(label="api")` in `scripts/modal_app.py` |
 
-That label is the part of the link this project owns: changing it in
-`scripts/modal_app.py` moves the URL, and the previous one returns 404 — Modal
-offers no redirect. It is also exclusive inside the workspace, so one label can
-belong to one app at a time. The workspace prefix (`mohamed-sherif-data`) comes
-from the Modal account, not from this code.
+Neither is a person's name, so the link is safe to share on behalf of a team.
+Changing the label moves the URL and the previous one returns 404 — Modal offers
+no redirect. The label is also exclusive inside the workspace, so it can belong
+to one app at a time. A workspace rename moves every app it contains and needs a
+redeploy before the new prefix answers.
 
 The same app also runs anywhere with Docker:
 
@@ -227,11 +228,12 @@ docker run -p 8000:8000 crop-risk-api
 
 ## الخلاصة بالعربي
 
-الخدمة على الرابط الجديد: **https://mohamed-sherif-data--crop-risk.modal.run** — بقى
-فيها صفحة عربية/إنجليزية بسيطة يختار فيها الزائر خمس حاجات (المحصول، التربة،
-المياه، مرحلة النمو، ونموذج التنبؤ) وتطلع له النتيجة بالأسباب، وتحتها نفس الـ API
-لأي عميل. **الرابط القديم (`--crop-api`) اتوقف نهائيًا** لأن Modal مبيعملش
-redirect لما الـ label يتغيّر.
+الخدمة على الرابط: **https://crop-risk--api.modal.run** — بقى فيه صفحة
+عربية/إنجليزية بسيطة يختار فيها الزائر خمس حاجات (المحصول، التربة، المياه، مرحلة
+النمو، ونموذج التنبؤ) وتطلع له النتيجة بالأسباب، وتحتها نفس الـ API لأي عميل.
+**الرابط مافيهوش أي اسم شخص**: `crop-risk` اسم الـ Modal workspace و`api` اسم
+الـ endpoint، فممكن أي حد في الفريق يشاركه على لينكدإن من غير ما يذكر حساب
+حد. تغيير أي جزء منهم بيغيّر الرابط، والقديم بيرد 404 لأن Modal مبيعملش redirect.
 
 أهم نقطتين:
 

@@ -63,8 +63,11 @@ app = FastAPI(
         "**Honesty** — `GET /v1/models/metrics` returns the out-of-sample scores, and "
         "every report carries the assumptions behind the rule-based part."
     ),
-    contact={"name": "Mohamed Sherif", "email": "mohamed.sherif.data@gmail.com"},
-    license_info={"name": "MIT"},
+    contact={
+        "name": "Crop Risk API",
+        "url": "https://github.com/mohamed-sherif-data/crop-risk-api",
+    },
+    license_info={"name": "MIT", "identifier": "MIT"},
     openapi_tags=[
         {"name": "meta", "description": "Service, dataset and rule facts."},
         {"name": "crops", "description": "Catalogue and historical yields."},
