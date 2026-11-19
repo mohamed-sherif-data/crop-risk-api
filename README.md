@@ -1,6 +1,6 @@
 # Egypt Crop Risk — API + interface
 
-**Live:** <https://mohamed-sherif-data--crop-api.modal.run> · **Docs:** [`/docs`](https://mohamed-sherif-data--crop-api.modal.run/docs) · **Source:** <https://github.com/mohamed-sherif-data/crop-risk-api>
+**Live:** <https://mohamed-sherif-data--crop-risk.modal.run> · **Docs:** [`/docs`](https://mohamed-sherif-data--crop-risk.modal.run/docs) · **Source:** <https://github.com/mohamed-sherif-data/crop-risk-api>
 
 The crop-risk notebook (`crop_project_short.ipynb`) and its Streamlit app, rebuilt as
 one FastAPI service with two faces:
@@ -56,7 +56,7 @@ redeploy can never leave a stale page behind.
 The sliders are one `POST /v1/risk/report` request:
 
 ```bash
-curl -s -X POST https://mohamed-sherif-data--crop-api.modal.run/v1/risk/report \
+curl -s -X POST https://mohamed-sherif-data--crop-risk.modal.run/v1/risk/report \
   -H "Content-Type: application/json" \
   -d '{"crop": "Wheat", "soil": "Sandy", "water_percent": 70, "stage": "flowering", "forecast_model": "poly"}'
 ```
@@ -165,7 +165,7 @@ web/styles.css             ink + gold, segmented controls, responsive
 web/app.js                 submit → POST /v1/risk/report → render
 data/…Raw.csv              FAOSTAT export
 tests/test_api.py          26 contract tests, including the notebook's worked examples
-scripts/modal_app.py       Modal deploy, label crop-api (keeps the same URL)
+scripts/modal_app.py       Modal deploy, label crop-risk (the label is the public URL)
 scripts/check_ui.py        34 browser assertions against local or live
 scripts/screenshots.py     regenerates the images in docs/media/
 docs/media/live/           screenshots taken from the deployed service
@@ -179,7 +179,7 @@ requirements-dev.txt       the above plus pytest and httpx
 py -m pytest -q                              # 26 passed
 py -m uvicorn api.main:app --port 8100       # then, in another shell:
 py scripts/check_ui.py                       # 34 browser checks, local
-py scripts/check_ui.py https://mohamed-sherif-data--crop-api.modal.run   # and live
+py scripts/check_ui.py https://mohamed-sherif-data--crop-risk.modal.run   # and live
 ```
 
 The API tests pin the notebook's numbers: naive MAPE 6.38 %, risk AUC 0.597, base
@@ -206,17 +206,17 @@ Without `gh`: create the empty repository on github.com, then
 
 ## Deploy
 
-The public URL is a Modal web endpoint labelled `crop-api`:
+The public URL is a Modal web endpoint labelled `crop-risk`:
 
 ```bash
 py -m modal deploy scripts/modal_app.py
 ```
 
-That label can only belong to one app at a time, so the previous project
-(`egypt-crop-analytics`) was stopped with
-`py -m modal app stop --yes egypt-crop-analytics` to free
-`mohamed-sherif-data--crop-api`. Redeploying the older project restores it, but it
-would take the label back and this service would need a different one.
+That label is the part of the link this project owns: changing it in
+`scripts/modal_app.py` moves the URL, and the previous one returns 404 — Modal
+offers no redirect. It is also exclusive inside the workspace, so one label can
+belong to one app at a time. The workspace prefix (`mohamed-sherif-data`) comes
+from the Modal account, not from this code.
 
 The same app also runs anywhere with Docker:
 
@@ -227,9 +227,11 @@ docker run -p 8000:8000 crop-risk-api
 
 ## الخلاصة بالعربي
 
-الخدمة على نفس الرابط: **https://mohamed-sherif-data--crop-api.modal.run** — بقى
-فيها صفحة عربية/إنجليزية بسيطة يختار فيها الزائر أربع حاجات (المحصول، التربة،
-المياه، مرحلة النمو) وتطلع له النتيجة بالأسباب، وتحتها نفس الـ API لأي عميل.
+الخدمة على الرابط الجديد: **https://mohamed-sherif-data--crop-risk.modal.run** — بقى
+فيها صفحة عربية/إنجليزية بسيطة يختار فيها الزائر خمس حاجات (المحصول، التربة،
+المياه، مرحلة النمو، ونموذج التنبؤ) وتطلع له النتيجة بالأسباب، وتحتها نفس الـ API
+لأي عميل. **الرابط القديم (`--crop-api`) اتوقف نهائيًا** لأن Modal مبيعملش
+redirect لما الـ label يتغيّر.
 
 أهم نقطتين:
 
